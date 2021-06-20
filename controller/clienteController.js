@@ -1,8 +1,9 @@
-//controller tratamento do req, res
+//controller tratamento do req, res e persistencia
 
 const con = require('../conexBD/config')
 const queryCliente = require('../DataBase/queryClientes')
-
+const jwt = require('jsonwebtoken')
+const clienteRepository = require('../repository/clienteRepository')
 
 exports.listar = (req, res) => {
     con.query(queryCliente.listar, (erro, rows) => {
@@ -32,7 +33,7 @@ exports.inserir = (req, res) => {
 }
 
 exports.buscarPorId = (req, res) => {
-    const id = req.params.id;
+    const id = +req.params.id;//+ é o parseint do ecmascript 6 converte o req.params.id que é uma string para um inteiro
     con.query(queryCliente.buscaPorId, [id], (erro, rows) => {
         if (erro) {
             res.status(500).json({ "erro:": "Database Error" })
@@ -50,7 +51,7 @@ exports.buscarPorId = (req, res) => {
 }
 
 exports.atualizar = (req, res) => {
-    const id = req.params.id;//sempre retorna uma string
+    const id = +req.params.id;//sempre retorna uma string
     const cli = req.body;
     con.query(queryCliente.atualizar, [cli.nome, cli.email, cli.cpf, id], (erro, rows) => {
         if (erro) {
@@ -65,7 +66,7 @@ exports.atualizar = (req, res) => {
 }
 
 exports.deletar = (req, res) => {
-    const id = req.params.id;//sempre retorna uma string
+    const id = +req.params.id;//sempre retorna uma string
     con.query(queryCliente.deletar, [id], (erro, rows) => {
         if (erro) {
             res.status(500).json({ "erro:": "Database Error" })
@@ -78,33 +79,86 @@ exports.deletar = (req, res) => {
     })
 }
 
-exports.buscarPorUsername = (req, res) => {   
+
+exports.buscarPorUsername = (req, res) => {    
     if(req.query && req.query.username){
-        const username = req.query.username; 
-        con.query(queryCliente.buscarPorUsername, [username], (err, rows) => {
-            if(err){            
-                const error = {
-                    status: 500,
-                    msg: err
-                }
-                console.log(err)
-                res.status(error.status).json(error);
+        const username = req.query.username;//req.query - qualquer busca n sendo algo único utiliza-se req.query (listagem, search)
+        clienteRepository.buscarPorUsername(username, (err,usuario) => {
+            if(err){
+                res.status(err.status).json(err);
             }
             else {
-                if(rows && rows.length > 0){
-                    res.json(rows[0]);
-                }
-                else{ 
-                    const error = {
-                        status: 404,
-                        msg: "usuario nao encontrado"
-                    }
-                    res.status(error);
-                }
+                res.json(usuario);
             }
         });
     }
     else{
         res.status(400).json({"status":400, "msg":"Necessario especificar username."})
+    }
+}
+
+exports.validacaoCliente = (req, res) => {
+    if(req.body && req.body.username && req.body.senha){
+        const username = req.body.username;
+        const password = req.body.senha;
+        clienteRepository.buscarPorUsername(username, (err,cliente) => {
+            if (err) {//alguma msg de erro no servidor
+                if(err.status == 404){
+                    const erro = {
+                        status: 401,
+                        msg: "Cliente inválido"
+                    }
+                    res.status(erro.status).json(erro);
+                }
+                else {
+                    res.status(err.status).json(err);
+                }
+            }
+            else {
+                if (cliente.senha == password) {
+                    const token = jwt.sign({
+                        id: cliente.id, //payload
+                        nome: cliente.nome //payload
+                    }, "Sen@crs2021", { expiresIn: "1h" });//secret Key
+                    res.status(201).json({ 'token': token });
+                }
+                else {
+                    res.status(401).json('msg: Senha Inválida');
+                }
+            }
+        })
+    }
+    else {
+        const erro = {
+            status: 400,
+            msg: "Usuário ou senha inexistentes"
+        }
+        res.status(erro.status).json(erro);
+    }
+}
+
+exports.validacaoToken = (req, res, next) => {
+    const token = req.get("x-auth-token");//resgatando um dado no cabeçalho
+    if(!token){
+        const error = { 
+            status: 403,
+            msg: "Nao tem token de acesso"
+        }
+        res.status(error.status).json(error);
+    }
+    else {
+        jwt.verify(token, "Sen@crs2021", (err, payload) => {
+            if(err){
+                const error = { 
+                    status: 403,
+                    msg: "Token invalido"
+                }
+                res.status(error.status).json(error);        
+            }
+            else{
+                console.log(`Id do Usuario: ${+payload.id}`);
+                next();
+            }
+        })
     }
 }
