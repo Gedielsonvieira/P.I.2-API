@@ -17,6 +17,10 @@ Configuração do projeto:
 	Instalar nodemon
 	npm install --save -dev nodemon 
 
+    Instalar jsonwebtoken
+    npm install jsonwebtoken 
+
+
 Funcionalidades referente a cliente:
 
 -    [x] Adicionar cliente.
