@@ -20,6 +20,9 @@ Configuração do projeto:
     Instalar jsonwebtoken
     npm install jsonwebtoken 
 
+    Instalar cors
+    npm install cors
+
 
 Funcionalidades referente a cliente:
 
